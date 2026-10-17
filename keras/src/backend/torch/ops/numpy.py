@@ -521,7 +521,11 @@ def heaviside(x1, x2):
     x1 = cast(x1, dtype)
     x2 = cast(x2, dtype)
 
-    return torch.heaviside(x1, x2)
+    y = torch.heaviside(x1, x2)
+    if x1.is_floating_point():
+        # `torch.heaviside` maps NaN to 0. NumPy propagates NaN.
+        y = torch.where(torch.isnan(x1), x1, y)
+    return y
 
 
 def kaiser(x, beta):

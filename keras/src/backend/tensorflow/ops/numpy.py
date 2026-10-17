@@ -190,6 +190,10 @@ def heaviside(x1, x2):
     x1 = tf.cast(x1, dtype)
     x2 = tf.cast(x2, dtype)
 
+    if x1.dtype.is_floating:
+        # NaN is neither < 0 nor > 0. Propagate it, as NumPy does, instead of
+        # returning `x2`.
+        x2 = tf.where(tf.math.is_nan(x1), x1, x2)
     return tf.where(
         x1 < 0,
         tf.zeros_like(x1),
