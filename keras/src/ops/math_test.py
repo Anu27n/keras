@@ -873,6 +873,10 @@ class MathOpsCorrectnessTest(testing.TestCase):
         expected = np.log(np.sum(np.exp(x), axis=1))
         self.assertAllClose(outputs, expected)
 
+        # An empty axis reduces over nothing, as in NumPy and SciPy.
+        self.assertAllClose(kmath.logsumexp(x, axis=()), x)
+        self.assertAllClose(kmath.logsumexp(x, axis=(), keepdims=True), x)
+
     def test_extract_sequences(self):
         # Test 1D case.
         x = np.random.random((10,))

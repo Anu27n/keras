@@ -101,6 +101,10 @@ def in_top_k(targets, predictions, k):
 
 def logsumexp(x, axis=None, keepdims=False):
     x = convert_to_tensor(x)
+    if axis == () or axis == []:
+        # Torch reduces over every axis for an empty `dim`. NumPy and SciPy
+        # reduce over none, so the result is `x`.
+        return x
     axis = tuple(range(x.dim())) if axis is None else axis
     return torch.logsumexp(x, dim=axis, keepdim=keepdims)
 
