@@ -5838,6 +5838,38 @@ class NumpyOneInputOpsCorrectnessTest(testing.TestCase):
         self.assertAllClose(knp.argsort(x), np.argsort(x))
         self.assertAllClose(knp.Argsort()(x), np.argsort(x))
 
+    def test_sort_and_argsort_place_nan_last(self):
+        x = np.array(
+            [[3.0, np.nan, -np.inf, 1.0], [np.nan, np.inf, 0.0, np.nan]],
+            dtype="float32",
+        )
+        for axis in (-1, 0, None):
+            self.assertAllClose(
+                knp.argsort(x, axis=axis),
+                np.argsort(x, axis=axis, kind="stable"),
+            )
+            self.assertAllClose(knp.sort(x, axis=axis), np.sort(x, axis=axis))
+
+    def test_argmax_and_argmin_return_first_nan(self):
+        x = np.array(
+            [[3.0, np.nan, 1.0, np.nan], [2.0, 5.0, -1.0, 0.0]], dtype="float32"
+        )
+        for axis in (None, 0, 1):
+            self.assertAllClose(
+                knp.argmax(x, axis=axis), np.argmax(x, axis=axis)
+            )
+            self.assertAllClose(
+                knp.argmin(x, axis=axis), np.argmin(x, axis=axis)
+            )
+        self.assertAllClose(
+            knp.argmax(x, axis=1, keepdims=True),
+            np.argmax(x, axis=1, keepdims=True),
+        )
+
+    def test_unique_sorts_nan_last(self):
+        x = np.array([3.0, np.nan, 1.0, 2.0], dtype="float32")
+        self.assertAllClose(knp.unique(x), np.unique(x))
+
     def test_array(self):
         x = np.array([[1, 2, 3], [3, 2, 1]])
         self.assertAllClose(knp.array(x), np.array(x))

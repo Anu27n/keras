@@ -972,6 +972,8 @@ def argmax(x, axis=None, keepdims=False):
     if axis is None:
         x = tf.reshape(x, [-1])
     y = tf.argmax(x, axis=axis, output_type="int32")
+    # `tf.argmax` skips NaN. NumPy returns the index of the first NaN.
+    y = _first_nan_index_where_any(x, y, axis)
     if keepdims:
         y = _keepdims(_x, y, axis)
     return y
@@ -1001,9 +1003,33 @@ def argmin(x, axis=None, keepdims=False):
     if axis is None:
         x = tf.reshape(x, [-1])
     y = tf.argmin(x, axis=axis, output_type="int32")
+    # `tf.argmin` skips NaN. NumPy returns the index of the first NaN.
+    y = _first_nan_index_where_any(x, y, axis)
     if keepdims:
         y = _keepdims(_x, y, axis)
     return y
+
+
+def _first_nan_index_where_any(x, y, axis):
+    is_nan = tf.math.is_nan(x)
+    first_nan = tf.argmax(
+        tf.cast(is_nan, "int32"), axis=axis, output_type="int32"
+    )
+    return tf.where(tf.reduce_any(is_nan, axis=axis), first_nan, y)
+
+
+def _argsort_nan_last(x, axis):
+    # `tf.argsort` does not order NaN. Sort NaN as `inf`, then move the NaN
+    # entries after the real `inf` entries with a second stable sort.
+    is_nan = tf.math.is_nan(x)
+    order = tf.argsort(
+        tf.where(is_nan, tf.constant(np.inf, x.dtype), x),
+        axis=axis,
+        stable=True,
+    )
+    nan_in_order = take_along_axis(tf.cast(is_nan, "int32"), order, axis=axis)
+    nan_order = tf.argsort(nan_in_order, axis=axis, stable=True)
+    return take_along_axis(order, nan_order, axis=axis)
 
 
 def argsort(x, axis=-1):
@@ -1018,6 +1044,9 @@ def argsort(x, axis=-1):
     if axis is None:
         x = tf.reshape(x, [-1])
         axis = 0
+    if x.dtype.is_floating:
+        axis = canonicalize_axis(axis, x.shape.rank)
+        return _argsort_nan_last(x, axis)
     return tf.argsort(x, axis=axis)
 
 
@@ -3040,6 +3069,10 @@ def sort(x, axis=-1):
     if ori_dtype == "bool":
         x = tf.cast(x, "int8")
         return tf.cast(tf.sort(x, axis=axis), ori_dtype)
+    if x.dtype.is_floating:
+        axis = canonicalize_axis(axis, x.shape.rank)
+        order = _argsort_nan_last(x, axis)
+        return take_along_axis(x, order, axis=axis)
     return tf.sort(x, axis=axis)
 
 
@@ -4033,7 +4066,7 @@ def unique(
     if sorted:
         num_unique = tf.shape(y)[axis]
         if is_flatten or y.shape.rank == 1:
-            sort_order = tf.argsort(y)
+            sort_order = argsort(y, axis=0)
         else:
             # Multi-D lexicographical sort
             perm = list(range(y.shape.rank))

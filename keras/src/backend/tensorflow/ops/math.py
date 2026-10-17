@@ -69,7 +69,35 @@ def segment_prod(data, segment_ids, num_segments=None, sorted=False):
 
 
 def top_k(x, k, sorted=True, is_stable=True):
-    return tf.math.top_k(x, k, sorted=sorted)
+    x = convert_to_tensor(x)
+    if not x.dtype.is_floating:
+        return tf.math.top_k(x, k, sorted=sorted)
+
+    def nan_first_top_k():
+        # `tf.math.top_k` does not order NaN. NumPy, JAX and Torch rank NaN
+        # above `inf`, so sort NaN as `inf` and then move it to the front with
+        # a second stable sort.
+        from keras.src.backend.tensorflow.ops.numpy import take_along_axis
+
+        is_nan = tf.math.is_nan(x)
+        order = tf.argsort(
+            tf.where(is_nan, tf.constant(np.inf, x.dtype), x),
+            axis=-1,
+            direction="DESCENDING",
+            stable=True,
+        )
+        nan_in_order = take_along_axis(tf.cast(is_nan, "int32"), order, -1)
+        nan_first = tf.argsort(
+            nan_in_order, axis=-1, direction="DESCENDING", stable=True
+        )
+        indices = take_along_axis(order, nan_first, -1)[..., :k]
+        return take_along_axis(x, indices, -1), indices
+
+    return tf.cond(
+        tf.reduce_any(tf.math.is_nan(x)),
+        nan_first_top_k,
+        lambda: tuple(tf.math.top_k(x, k, sorted=sorted)),
+    )
 
 
 def in_top_k(targets, predictions, k):

@@ -765,6 +765,14 @@ class MathOpsCorrectnessTest(testing.TestCase):
 
     # Below tests are specific to stable top_k implementation.
     # We have `top_k` operation defined with `is_stable` argument
+    def test_top_k_ranks_nan_first(self):
+        x = np.array(
+            [[3.0, np.nan, np.inf, 1.0], [2.0, 5.0, -1.0, 0.0]], dtype="float32"
+        )
+        values, indices = kmath.top_k(x, k=3)
+        self.assertAllClose(values, [[np.nan, np.inf, 3.0], [5.0, 2.0, 0.0]])
+        self.assertAllClose(indices, [[1, 2, 0], [1, 0, 3]])
+
     def test_top_k_stability_small(self):
         x = np.array([3, 5, 5, 2, 5, 1], dtype=np.float32)
         values, indices = kmath.top_k(x, k=4, is_stable=True)
